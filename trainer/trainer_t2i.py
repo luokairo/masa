@@ -12,6 +12,7 @@ from dataset.tifo_dataset2 import TextToImageDataloader
 from trainer.utils import TrainerBase, print_model_param_num
 from models import VLChatProcessor, MultiModalityCausalLM, MultiModalityConfig
 import torch.nn as nn
+import wandb
 
 import traceback
 
@@ -39,15 +40,15 @@ def repeater(data_loader):
 
 def train_setup(model: MultiModalityCausalLM):
     for n, p in model.language_model.named_parameters():
-        p.requires_grad = False
-    model.language_model.eval()
+        p.requires_grad = True
+    model.language_model.train()
     model.language_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={'use_reentrant': False})
     for n, p in model.gen_embed.named_parameters():
-        p.requires_grad = False
-    model.gen_embed.eval()
+        p.requires_grad = True
+    model.gen_embed.train()
     for n, p in model.gen_head.named_parameters():
-        p.requires_grad = False
-    model.gen_head.eval()
+        p.requires_grad = True
+    model.gen_head.train()
     for n, p in model.gen_aligner.named_parameters():
         p.requires_grad = False
     model.gen_aligner.eval()
@@ -60,16 +61,6 @@ def train_setup(model: MultiModalityCausalLM):
     for n, p in model.gen_vision_model.named_parameters():
         p.requires_grad = False
     model.gen_vision_model.eval()
-    # only training tifo's module
-    for n, p in model.vision_slots_adapter.named_parameters():
-        p.requires_grad = True
-    model.vision_slots_adapter.train()
-    for n, p in model.text_slots_adapter.named_parameters():
-        p.requires_grad = True
-    model.text_slots_adapter.train()
-    for n, p in model.text_conductor.named_parameters():
-        p.requires_grad = True
-    model.text_conductor.train()
 
 
 def find_latest_directory(base_path):
@@ -135,15 +126,6 @@ class TextToImageTrainer(TrainerBase):
                 cfg.model.model_path, trust_remote_code=True
             ).to(torch.bfloat16).cuda()
             rprint("after MultiModalityCausalLM.from_pretrained + cuda")
-
-            self.model_before_ddp.text_conductor.apply(init_tifo)
-            rprint("after init text_conductor")
-
-            self.model_before_ddp.text_slots_adapter.apply(init_tifo)
-            rprint("after init text_slots_adapter")
-
-            self.model_before_ddp.vision_slots_adapter.apply(init_tifo)
-            rprint("after init vision_slots_adapter")
 
             train_setup(self.model_before_ddp)
             rprint("after train_setup")
@@ -241,6 +223,20 @@ class TextToImageTrainer(TrainerBase):
             dist.barrier()
             rprint("after barrier")
 
+            self.wandb_run = None
+            if self.dist.rank == 0:
+                try:
+                    import os
+                    os.environ.setdefault("WANDB_MODE", "offline")
+                    self.wandb_run = wandb.init(
+                        project="janus-pro-post-training",
+                        config=dict(cfg),
+                        settings=wandb.Settings(init_timeout=30),
+                    )
+                    rprint("wandb init success")
+                except Exception as e:
+                    rprint(f"wandb init failed, continue without wandb: {repr(e)}")
+
             self.model.train()
             rprint("begin train")
 
@@ -266,15 +262,15 @@ class TextToImageTrainer(TrainerBase):
     
 
     def get_next_data(self):
-        # x = np.array(range(len(self._data_loader_iter)))
-        # idx = np.random.choice(a=x, size=1, replace=True, p=self.prob)[0]
-        # input_data = next(self._data_loader_iter[idx])
-        # batch_size = len(input_data)
-        # input_token_max_len = self.input_token_max_len[idx]
-        idx = 0
-        input_data = next(self._data_loader_iter[0])
+        x = np.array(range(len(self._data_loader_iter)))
+        idx = np.random.choice(a=x, size=1, replace=True, p=self.prob)[0]
+        input_data = next(self._data_loader_iter[idx])
         batch_size = len(input_data)
-        input_token_max_len = self.input_token_max_len[0]
+        input_token_max_len = self.input_token_max_len[idx]
+        # idx = 0
+        # input_data = next(self._data_loader_iter[0])
+        # batch_size = len(input_data)
+        # input_token_max_len = self.input_token_max_len[0]
         if idx == 0:
             batched_input_ids = torch.full(
                 (batch_size, input_token_max_len), self.vl_chat_processor.pad_id
@@ -306,42 +302,42 @@ class TextToImageTrainer(TrainerBase):
             return {'input_ids': batched_input_ids.cuda(), 'attention_mask': batched_attention_mask.cuda(), 'image1':image1.cuda(), 'task_type': 0, 
                     "front": batched_front, "end": batched_end, "use_attn": batched_use_attn}, idx
         
-        # if idx == 1:
-        #     batched_input_ids = torch.full(
-        #         (batch_size, input_token_max_len), self.vl_chat_processor.pad_id
-        #     ).long()
-        #     batched_attention_mask = torch.zeros((batch_size, input_token_max_len)).long()
-        #     batched_labels = torch.ones((batch_size, input_token_max_len)).long() * -100
-        #     batched_images_seq_mask = torch.zeros((batch_size, input_token_max_len)).bool()
-        #     image1 = torch.stack([input_data[k]['image'] for k in range(batch_size)], dim=0)
-        #     batched_front = []
-        #     batched_end = []
-        #     batched_use_attn = []
-        #     for k in range(batch_size):
-        #         input_ids = input_data[k]['input_ids']
-        #         labels = input_data[k]['labels']
-        #         front = input_data[k]['front']
-        #         end = input_data[k]['end']
-        #         use_attn = input_data[k]['use_attn']
-        #         seq_len = len(input_ids)
+        if idx == 1:
+            batched_input_ids = torch.full(
+                (batch_size, input_token_max_len), self.vl_chat_processor.pad_id
+            ).long()
+            batched_attention_mask = torch.zeros((batch_size, input_token_max_len)).long()
+            batched_labels = torch.ones((batch_size, input_token_max_len)).long() * -100
+            batched_images_seq_mask = torch.zeros((batch_size, input_token_max_len)).bool()
+            image1 = torch.stack([input_data[k]['image'] for k in range(batch_size)], dim=0)
+            batched_front = []
+            batched_end = []
+            batched_use_attn = []
+            for k in range(batch_size):
+                input_ids = input_data[k]['input_ids']
+                labels = input_data[k]['labels']
+                front = input_data[k]['front']
+                end = input_data[k]['end']
+                use_attn = input_data[k]['use_attn']
+                seq_len = len(input_ids)
 
-        #         if seq_len >= input_token_max_len:
-        #             batched_attention_mask[k, :] = 1
-        #             batched_input_ids[k, :] = torch.LongTensor(input_ids)[:input_token_max_len]  
-        #             batched_labels[k, :] = torch.LongTensor(labels)[:input_token_max_len]  
-        #             batched_images_seq_mask[k, :] = (input_ids == self.vl_chat_processor.image_id)[:input_token_max_len]  
-        #             use_attn = 0
-        #         else:
-        #             batched_attention_mask[k, -seq_len:] = 1
-        #             batched_input_ids[k, -seq_len:] = torch.LongTensor(input_ids)  
-        #             batched_labels[k, -seq_len:] = torch.LongTensor(labels)   
-        #             batched_images_seq_mask[k, -seq_len:] = input_ids == self.vl_chat_processor.image_id
-        #             offset = input_token_max_len - seq_len
-        #             front = [x + offset for x in front]
-        #             end = [[a + offset for a in x] for x in end]
-        #         batched_front.append(front)
-        #         batched_end.append(end)
-        #         batched_use_attn.append(use_attn)
+                if seq_len >= input_token_max_len:
+                    batched_attention_mask[k, :] = 1
+                    batched_input_ids[k, :] = torch.LongTensor(input_ids)[:input_token_max_len]  
+                    batched_labels[k, :] = torch.LongTensor(labels)[:input_token_max_len]  
+                    batched_images_seq_mask[k, :] = (input_ids == self.vl_chat_processor.image_id)[:input_token_max_len]  
+                    use_attn = 0
+                else:
+                    batched_attention_mask[k, -seq_len:] = 1
+                    batched_input_ids[k, -seq_len:] = torch.LongTensor(input_ids)  
+                    batched_labels[k, -seq_len:] = torch.LongTensor(labels)   
+                    batched_images_seq_mask[k, -seq_len:] = input_ids == self.vl_chat_processor.image_id
+                    offset = input_token_max_len - seq_len
+                    front = [x + offset for x in front]
+                    end = [[a + offset for a in x] for x in end]
+                batched_front.append(front)
+                batched_end.append(end)
+                batched_use_attn.append(use_attn)
 
             return {'input_ids': batched_input_ids.cuda(), 'attention_mask': batched_attention_mask.cuda(), 'image1':image1.cuda(), 'labels':batched_labels.cuda(), 'image_seq_mask': batched_images_seq_mask.cuda(), 'task_type': 1, 
                     "front": batched_front, "end": batched_end, "use_attn": batched_use_attn}, idx
@@ -351,27 +347,43 @@ class TextToImageTrainer(TrainerBase):
         model_input, idx = self.get_next_data()
         self.optimizer.zero_grad(set_to_none=True)
         with autocast(dtype=torch.bfloat16, cache_enabled=False):
-            self._loss, self._loss_attn = self.model(**model_input)
+            self._loss = self.model(**model_input)
         self._loss.backward()
 
         total_norm = self._clip_grad_norm(max_norm=1.0)
         self.optimizer.step()
         reduced_loss = self._loss.clone().detach() / self.dist.world_size
-        reduced_loss_attn = self._loss_attn.clone().detach() / self.dist.world_size
         reduced_grad_norm = total_norm.clone().detach() / self.dist.world_size
-        # if idx==0:
-        #     self.meters.loss1.reduce_update(reduced_loss)
-        #     self.meters.loss2.reduce_update(reduced_loss_attn)
-        #     self.meters.grad_norm1.reduce_update(reduced_grad_norm)
-        # elif idx==1:
-        #     self.meters.loss3.reduce_update(reduced_loss)
-        #     self.meters.loss4.reduce_update(reduced_loss_attn)
-        #     self.meters.grad_norm2.reduce_update(reduced_grad_norm)
-        self.meters.loss1.reduce_update(reduced_loss)
-        self.meters.loss2.reduce_update(reduced_loss_attn)
-        self.meters.grad_norm1.reduce_update(reduced_grad_norm)
-        # self.meters.lr.reduce_update(torch.tensor(self.optimizer.param_groups[0]['lr']).cuda() / self.dist.world_size)
+
+        if self.dist.rank == 0:
+            wandb.log({
+
+            })
+        if idx==0:
+            self.meters.loss1.reduce_update(reduced_loss)
+            self.meters.grad_norm1.reduce_update(reduced_grad_norm)
+            task_name = "t2i"
+        elif idx==1:
+            self.meters.loss2.reduce_update(reduced_loss)
+            self.meters.grad_norm2.reduce_update(reduced_grad_norm)
+            task_name = "i2t"
+
+        lr = self.optimizer.param_groups[0]['lr']
         self.meters.lr.reduce_update(torch.tensor(self.optimizer.param_groups[0]['lr']).cuda() / self.dist.world_size)
+
+        if self.dist.rank == 0 and self.wandb_run is not None:
+            if idx == 0:
+                wandb.log({
+                    "task_text/loss": reduced_loss.item(),
+                    "task_text/grad_norm": reduced_grad_norm.item(),
+                    "lr": lr,
+                })
+            elif idx == 1:
+                wandb.log({
+                    "task_image/loss": reduced_loss.item(),
+                    "task_image/grad_norm": reduced_grad_norm.item(),
+                    "lr": lr,
+                })
 
     def _clip_grad_norm(self, max_norm):
         if hasattr(self.cfg.common, "use_fsdp") and self.cfg.common.use_fsdp:

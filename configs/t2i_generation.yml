@@ -1,7 +1,7 @@
 common:
-    output_path: /inspire/hdd/project/exploration-topic/public/ent/TIFO/ckpt
-    pre_path: /inspire/hdd/project/exploration-topic/public/ent/TIFO/ckpt/t2i_generation
-    log_path: /inspire/hdd/project/exploration-topic/public/ent/TIFO/logs
+    output_path: /inspire/hdd/project/exploration-topic/public/ent/NIPS/ckpt
+    pre_path: /inspire/hdd/project/exploration-topic/public/ent/NIPS/ckpt/t2i_generation
+    log_path: /inspire/hdd/project/exploration-topic/public/ent/NIPS/logs
     save_per_iters: 1000
     use_bf16: 1
     use_fp16: 0
@@ -28,18 +28,18 @@ model:
     processor_path: /inspire/hdd/project/exploration-topic/public/downloaded_ckpts/Janus/Janus-Pro-7B
 
 dataloader:
-    und_data_path: /inspire/hdd/project/exploration-topic/public/ent/download_dataset/BLIP3o-60k/*.tar
+    und_data_path: /inspire/hdd/project/exploration-topic/public/ent/dataset/und/sharegpt4v/sharegpt4v_instruct_gpt4-vision_cap100k.json
     gen_data_path: /inspire/hdd/project/exploration-topic/public/ent/download_dataset/BLIP3o-60k/*.tar
-    num_workers: 4
+    num_workers: 16
     prefetch_factor: 4
     sampler_shuffle: False
     tasks: [0,1]
     train:
         use_local_shuffle: True
         task1:
-          batch_size: 8
-          sample_ratio: 10
+          batch_size: 4
+          sample_ratio: 5
         task2:
-          batch_size: 8
-          sample_ratio: 0
+          batch_size: 4
+          sample_ratio: 5
         

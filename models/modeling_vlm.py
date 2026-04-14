@@ -271,16 +271,6 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
         # language_config._attn_implementation = 'eager'
         # language_config._attn_implementation = 'flash_attention_2'
         self.language_model = LlamaForCausalLM(language_config)
-
-        # for tifo
-        self.vision_slots_adapter = StableSlotsAdapter(aligner_config.params.n_embed, num_slots=6)
-        self.text_slots_adapter = StableSlotsAdapter(aligner_config.params.n_embed, num_slots=6)
-        self.text_conductor = TextAdapter(
-            input_dim=aligner_config.params.n_embed,
-            hidden_dim=aligner_config.params.n_embed // 2,
-            out_dim=aligner_config.params.n_embed,
-
-        )
        
 
     def prepare_inputs_embeds(
@@ -325,10 +315,8 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
         return inputs_embeds
 
     def forward(self, input_ids, attention_mask, labels=None, image1=None, image_seq_mask=None, image2=None, task_type=0, front=None, end=None, use_attn=False):
-        if task_type == 2:
+        if task_type == 0:
             input_embeds = self.language_model.get_input_embeddings()(input_ids)
-            # tifo: conduct information
-            input_embeds = self.text_conductor(input_embeds)
             image_embeds, labels = self.prepare_embedding(image1)
             input_embeds = torch.cat((input_embeds, image_embeds), dim=1)
             B, L = image_embeds.shape[0], image_embeds.shape[1]
@@ -338,41 +326,13 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
             outputs = self.language_model.model(inputs_embeds=input_embeds, 
                                                     attention_mask=attention_mask, output_attentions=True, return_dict_in_generate=True)
             last_hidden_state = outputs.last_hidden_state
-            full_attention = outputs.attentions
 
             image_logits = self.gen_head(last_hidden_state)
             visual_vocab_size = image_logits.shape[-1]
             shift_logits = image_logits[..., -1-label_len:-1, :].contiguous()
             loss_ntp = self.loss_fct(shift_logits.view(-1, visual_vocab_size), labels.view(-1))
 
-            full_attn_loss = 0
-            for layer_idx in range(len(full_attention)):
-                batch_attn = full_attention[layer_idx]
-                for batch_idx in range(len(batch_attn)):
-                    attn = batch_attn[batch_idx]
-                    s_use_attn = use_attn[batch_idx]
-                    s_front = front[batch_idx]
-                    s_end = end[batch_idx]
-
-                    used = attn[:,s_end[0]:s_end[1], s_front[0]:s_front[1]]
-                    attn_loss_ori = used.float().sum(dim=-1).mean(dim=1).mean(dim=-1)
-                    if layer_idx<10:
-                        criterion = nn.HuberLoss(delta=0.2)
-                        boundary = 0.4
-                    elif layer_idx>=10 and layer_idx<25:
-                        criterion = nn.HuberLoss(delta=0.1)
-                        boundary = 0.4
-                    else:
-                        criterion = nn.HuberLoss(delta=0.05)
-                        boundary = 0.2
-                    target = torch.full_like(attn_loss_ori, boundary)
-                    attn_loss = criterion(attn_loss_ori, target)
-                    if s_use_attn:
-                        full_attn_loss = full_attn_loss + attn_loss
-                    else:
-                        full_attn_loss = full_attn_loss + attn_loss * 0
-            loss_attn = full_attn_loss / (len(full_attention) * len(full_attention[2]))
-            loss = loss_ntp + 5 * loss_attn
+            loss = loss_ntp
 
         elif task_type==1:
             image_embeds, _ = self.prepare_embedding(image1, gen_image=False)
@@ -391,80 +351,13 @@ class MultiModalityCausalLM(MultiModalityPreTrainedModel):
             shift_labels = labels[...,1:].contiguous()
             loss_ntp = self.loss_fct(shift_logits.view(-1,text_vocab_size), shift_labels.view(-1))
 
-            criterion = nn.HuberLoss(delta=0.05)
-            full_attn_loss = 0
-            for layer_idx in range(len(full_attention)):
-                batch_attn = full_attention[layer_idx]
-                for batch_idx in range(len(batch_attn)):
-                    attn = batch_attn[batch_idx]
-                    s_use_attn = use_attn[batch_idx]
-                    s_front = front[batch_idx]
-                    s_end = end[batch_idx]
-
-                    us_list = []
-                    if s_use_attn:
-                        for en in s_end:
-                            us_list.append(attn[:,en[0]:en[1], s_front[0]:s_front[1]])
-                        used = torch.cat((us_list),dim=1)
-                        attn_loss_ori = used.float().sum(dim=-1).mean(dim=1).mean(dim=-1)
-                        if layer_idx<10:
-                            boundary = 0.1
-                        elif layer_idx>=10 and layer_idx<=20:
-                            boundary= 0.15
-                        elif layer_idx>20 and layer_idx<=29:
-                            boundary = 0.3
-                        else:
-                            boundary=0.2
-                        target = torch.full_like(attn_loss_ori, boundary)
-                        attn_loss = criterion(attn_loss_ori, target)
-                        full_attn_loss = full_attn_loss + attn_loss
-                    else:
-                        used = attn[:,:, s_front[0]:s_front[1]]
-                        attn_loss = used.float().sum(dim=-1).mean(dim=1).mean(dim=-1)
-                        full_attn_loss = full_attn_loss + attn_loss * 0
-            loss_attn = full_attn_loss / (len(full_attention) * len(full_attention[2]))
-            loss = loss_ntp + 10 * loss_attn
-        elif task_type == 0:
-            und_image_embeds, _ = self.prepare_embedding(image1, gen_image=False)
-            input_embeds = self.language_model.get_input_embeddings()(input_ids)
-            # tifo: conduct information
-            input_embeds = self.text_conductor(input_embeds)
-            # text_ca_kv = pack_kv(input_embeds)          # input_embeds: [B, Lt, C]
-            # vision_ca_kv = pack_kv(und_image_embeds)    # und_image_embeds: [B, Lv, C]
-
-            text_slots = self.text_slots_adapter(input_embeds, attention_mask=attention_mask)        # [B, K, C]
-            vision_slots = self.vision_slots_adapter(und_image_embeds, attention_mask=None)  # [B, K, C]
-
-            text_slots_norm = F.normalize(text_slots, dim=-1)
-            vision_slots_norm = F.normalize(vision_slots.detach(), dim=-1)
-            loss_div = calculate_div_loss(text_slots)
-
-            loss_slot = 1 - (text_slots_norm * vision_slots_norm).sum(dim=-1).mean()
-
-            image_embeds, labels = self.prepare_embedding(image1)
-            input_embeds = torch.cat((input_embeds, image_embeds), dim=1)
-            B, L = image_embeds.shape[0], image_embeds.shape[1]
-
-            attention_mask = torch.cat((attention_mask, torch.ones((B, L)).long().to(attention_mask.device)), dim=1)
-            label_len = labels.shape[-1]
-            outputs = self.language_model.model(inputs_embeds=input_embeds, 
-                                                    attention_mask=attention_mask, output_attentions=False, return_dict_in_generate=True)
-            last_hidden_state = outputs.last_hidden_state
-            full_attention = outputs.attentions
-
-            image_logits = self.gen_head(last_hidden_state)
-            visual_vocab_size = image_logits.shape[-1]
-            shift_logits = image_logits[..., -1-label_len:-1, :].contiguous()
-            loss_ntp = self.loss_fct(shift_logits.view(-1, visual_vocab_size), labels.view(-1))
-
-            loss = loss_ntp + 0.05 * loss_slot + 0.02 * loss_div
-
-
-
+            loss = loss_ntp
+            
+        
         else:
             raise NotImplementedError
             
-        return loss, loss_slot
+        return loss
 
     def prepare_embedding(
         self,
