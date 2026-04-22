@@ -23,30 +23,30 @@ test_gen_eval() {
     GEN_EVAL_ROOT="${PROJ_ROOT}/evaluation_gen/gen_eval"
     
     # run inference
-    ${python_ext} evaluation_gen/gen_eval/janus_infer4eval.py \
-    --cfg ${cfg} \
-    --tau ${tau} \
-    --pn ${pn} \
-    --model_path ${infinity_model_path} \
-    --ckpt_path ${janus_ckpt_path} \
-    --vae_type ${vae_type} \
-    --vae_path ${vae_path} \
-    --add_lvl_embeding_only_first_block ${add_lvl_embeding_only_first_block} \
-    --use_bit_label ${use_bit_label} \
-    --model_type ${model_type} \
-    --rope2d_each_sa_layer ${rope2d_each_sa_layer} \
-    --rope2d_normalized_by_hw ${rope2d_normalized_by_hw} \
-    --use_scale_schedule_embedding ${use_scale_schedule_embedding} \
-    --cfg ${cfg} \
-    --tau ${tau} \
-    --checkpoint_type ${checkpoint_type} \
-    --text_encoder_ckpt ${text_encoder_ckpt} \
-    --text_channels ${text_channels} \
-    --apply_spatial_patchify ${apply_spatial_patchify} \
-    --cfg_insertion_layer ${cfg_insertion_layer} \
-    --outdir ${out_dir}/images \
-    --rewrite_prompt ${rewrite_prompt} \
-    --metadata_file ${GEN_EVAL_ROOT}/prompts/evaluation_metadata.jsonl
+    # ${python_ext} evaluation_gen/gen_eval/janus_infer4eval.py \
+    # --cfg ${cfg} \
+    # --tau ${tau} \
+    # --pn ${pn} \
+    # --model_path ${infinity_model_path} \
+    # --ckpt_path ${janus_ckpt_path} \
+    # --vae_type ${vae_type} \
+    # --vae_path ${vae_path} \
+    # --add_lvl_embeding_only_first_block ${add_lvl_embeding_only_first_block} \
+    # --use_bit_label ${use_bit_label} \
+    # --model_type ${model_type} \
+    # --rope2d_each_sa_layer ${rope2d_each_sa_layer} \
+    # --rope2d_normalized_by_hw ${rope2d_normalized_by_hw} \
+    # --use_scale_schedule_embedding ${use_scale_schedule_embedding} \
+    # --cfg ${cfg} \
+    # --tau ${tau} \
+    # --checkpoint_type ${checkpoint_type} \
+    # --text_encoder_ckpt ${text_encoder_ckpt} \
+    # --text_channels ${text_channels} \
+    # --apply_spatial_patchify ${apply_spatial_patchify} \
+    # --cfg_insertion_layer ${cfg_insertion_layer} \
+    # --outdir ${out_dir}/images \
+    # --rewrite_prompt ${rewrite_prompt} \
+    # --metadata_file ${GEN_EVAL_ROOT}/prompts/evaluation_metadata.jsonl
 
     # detect objects
     ${python_ext} ${GEN_EVAL_ROOT}/evaluate_images.py ${out_dir}/images \
@@ -77,11 +77,11 @@ cfg_insertion_layer=0
 infinity_model_path="${CKPT_ROOT}/infinity_2b_reg.pth"
 vae_path="${CKPT_ROOT}/infinity_vae_d32reg.pth"
 text_encoder_ckpt="${CKPT_ROOT}/t5xl"
-janus_ckpt_path="/inspire/hdd/project/exploration-topic/public/ent/NIPS/ckpt/t2i_generation/14208860000.0/ckpt/iter_6999.pth"
+janus_ckpt_path="/inspire/hdd/project/exploration-topic/public/ent/NIPS/ckpt/t2i_generation/14208860000.0/ckpt/iter_13999.pth"
 
 
 # 定义输出根目录 (匿名化)
-out_dir_root="${OUTPUT_ROOT}/eval_results/posttraining-none"
+out_dir_root="${OUTPUT_ROOT}/eval_results/posttraining-13999"
 
 vae_type=32
 cfg=5

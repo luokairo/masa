@@ -1,0 +1,26 @@
+{
+  "mode": "understanding",
+  "matched_prompt_text": "Describe this image",
+  "input_length": 627,
+  "generated_token_count": 78,
+  "image_span": {
+    "start": 41,
+    "end_exclusive": 619
+  },
+  "prompt_span": {
+    "start": 620,
+    "end_exclusive": 623
+  },
+  "prompt_found": true,
+  "fraction_top_source_in_prompt": 0.0,
+  "fraction_top_source_in_image": 0.0,
+  "fraction_max_group_prompt": 0.0,
+  "fraction_max_group_image": 0.0,
+  "mean_prompt_mass": 0.007943999296866166,
+  "mean_image_mass": 0.11563463074465592,
+  "mean_generated_prefix_mass": 0.18701102465200117,
+  "mean_prompt_top1_ratio": 0.48540193393246805,
+  "mean_prompt_top5_ratio": 1.0,
+  "mean_prompt_effective_token_count": 2.618789064018885,
+  "mean_prompt_effective_fraction": 0.8729296880062952
+}

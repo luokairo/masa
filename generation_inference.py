@@ -23,6 +23,8 @@ from models import MultiModalityCausalLM, VLChatProcessor
 import numpy as np
 import os
 import PIL.Image
+import math
+from typing import Tuple, List, Optional
 
 import argparse
 
@@ -87,7 +89,6 @@ def generate(
             tokens[i, 1:-1] = vl_chat_processor.pad_id
 
     inputs_embeds = mmgpt.language_model.get_input_embeddings()(tokens)
-    inputs_embeds = mmgpt.text_conductor(inputs_embeds)
     generated_tokens = torch.zeros((parallel_size, image_token_num_per_image), dtype=torch.int).cuda()
     for i in range(image_token_num_per_image):
         outputs = mmgpt.language_model.model(inputs_embeds=inputs_embeds, use_cache=True, past_key_values=outputs.past_key_values if i != 0 else None)

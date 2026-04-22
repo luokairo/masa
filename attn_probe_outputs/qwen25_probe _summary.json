@@ -1,0 +1,28 @@
+{
+  "mode": "understanding",
+  "model_type": "Qwen2.5-VL",
+  "model_path": "/inspire/hdd/project/exploration-topic/public/downloaded_ckpts/Qwen2.5-VL-3B-Instruct",
+  "matched_prompt_text": "Describe this image",
+  "input_length": 220,
+  "generated_token_count": 108,
+  "image_span": {
+    "start": 14,
+    "end_exclusive": 215
+  },
+  "prompt_span": {
+    "start": 212,
+    "end_exclusive": 215
+  },
+  "prompt_found": true,
+  "fraction_top_source_in_prompt": 0.0,
+  "fraction_top_source_in_image": 0.0,
+  "fraction_max_group_prompt": 0.0,
+  "fraction_max_group_image": 0.0,
+  "mean_prompt_mass": 0.010244456055160198,
+  "mean_image_mass": 0.0842476984899905,
+  "mean_generated_prefix_mass": 0.4516143773302988,
+  "mean_prompt_top1_ratio": 0.45785364547599844,
+  "mean_prompt_top5_ratio": 1.0,
+  "mean_prompt_effective_token_count": 2.7734013559351554,
+  "mean_prompt_effective_fraction": 0.9244671186450519
+}

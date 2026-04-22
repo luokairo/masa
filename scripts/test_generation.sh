@@ -1,6 +1,6 @@
 # !/bin/bash
 
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=0
 
 CKPT_PATH="/inspire/hdd/project/exploration-topic/public/ent/NIPS/ckpt/t2i_generation/14208860000.0/ckpt/iter_13999.pth"
 PROMPT="A beautiful sunset over a futuristic city, high resolution, digital art"
