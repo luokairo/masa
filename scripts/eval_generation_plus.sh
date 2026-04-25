@@ -19,11 +19,10 @@ python_ext=python3
 pip_ext=pip3
 
 test_gen_eval() {
-    # 路径已改为基于 PROJ_ROOT 的相对路径
     GEN_EVAL_ROOT="${PROJ_ROOT}/evaluation_gen/gen_eval"
-    
-    # run inference
-    ${python_ext} evaluation_gen/gen_eval/janus_infer4eval.py \
+
+    # run plus inference
+    ${python_ext} evaluation_gen/gen_eval/janus_infer4eval_plus.py \
     --cfg ${cfg} \
     --tau ${tau} \
     --pn ${pn} \
@@ -37,16 +36,22 @@ test_gen_eval() {
     --rope2d_each_sa_layer ${rope2d_each_sa_layer} \
     --rope2d_normalized_by_hw ${rope2d_normalized_by_hw} \
     --use_scale_schedule_embedding ${use_scale_schedule_embedding} \
-    --cfg ${cfg} \
-    --tau ${tau} \
     --checkpoint_type ${checkpoint_type} \
     --text_encoder_ckpt ${text_encoder_ckpt} \
     --text_channels ${text_channels} \
     --apply_spatial_patchify ${apply_spatial_patchify} \
     --cfg_insertion_layer ${cfg_insertion_layer} \
     --outdir ${out_dir}/images \
+    --n_samples ${n_samples} \
     --rewrite_prompt ${rewrite_prompt} \
-    --metadata_file ${GEN_EVAL_ROOT}/prompts/evaluation_metadata.jsonl
+    --metadata_file ${GEN_EVAL_ROOT}/prompts/evaluation_metadata.jsonl \
+    --janus_model_path ${janus_model_path} \
+    --attn_implementation eager \
+    --latent_topk ${latent_topk} \
+    --latent_attention_layers ${latent_attention_layers} \
+    --latent_repeats ${latent_repeats} \
+    --latent_cfg_mode ${latent_cfg_mode} \
+    ${plus_extra_args}
 
     # detect objects
     ${python_ext} ${GEN_EVAL_ROOT}/evaluate_images.py ${out_dir}/images \
@@ -73,26 +78,36 @@ text_channels=2048
 apply_spatial_patchify=0
 cfg_insertion_layer=0
 
-# 使用之前定义的 ROOT 变量拼接路径
 infinity_model_path="${CKPT_ROOT}/infinity_2b_reg.pth"
 vae_path="${CKPT_ROOT}/infinity_vae_d32reg.pth"
 text_encoder_ckpt="${CKPT_ROOT}/t5xl"
+janus_model_path="/inspire/hdd/project/exploration-topic/public/downloaded_ckpts/Janus/Janus-Pro-7B"
 janus_ckpt_path="/inspire/hdd/project/exploration-topic/public/ent/NIPS/ckpt/t2i_generation/14208860000.0/ckpt/iter_13999.pth"
 
 
-# 定义输出根目录 (匿名化)
+# ================= Plus Arguments =================
+# 推荐先用较保守配置；如果增强太弱，再提高 latent_topk 或 latent_repeats。
+latent_topk=4
+latent_attention_layers=4
+latent_repeats=1
+latent_cfg_mode=shared
+plus_extra_args=""
+# plus_extra_args="--save_latent_debug"
+# plus_extra_args="--keep_filler_tokens"
+
+
+# ================= Output Arguments =================
 out_dir_root="${OUTPUT_ROOT}/eval_results/posttraining-13999"
 
 vae_type=32
 cfg=5
 tau=1
-sub_fix=cfg${cfg}_tau${tau}_cfg_insertion_layer${cfg_insertion_layer}
+n_samples=4
+sub_fix=cfg${cfg}_tau${tau}_cfg_insertion_layer${cfg_insertion_layer}_plus_topk${latent_topk}_rep${latent_repeats}_${latent_cfg_mode}
+
 
 # ================= Execution Blocks =================
-
-
-# GenEval
 rewrite_prompt=0
 out_dir=${out_dir_root}/gen_eval_${sub_fix}_rewrite_prompt${rewrite_prompt}_round2_real_rewrite
+mkdir -p ${out_dir}/results
 test_gen_eval
-
